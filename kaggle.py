@@ -1,5 +1,5 @@
 import pandas as pd
-from sklearn.ensemble import RandomForestClassifier
+from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import train_test_split, RandomizedSearchCV
 import numpy as np
@@ -8,39 +8,38 @@ from sklearn.pipeline import Pipeline
 from xgboost import XGBClassifier
 from sklearn.ensemble import RandomForestClassifier
 from scipy.stats import randint as sp_randint
+from sklearn.preprocessing import normalize
+from sklearn import preprocessing
 
 data = pd.read_csv('C:/Users/lysyi/Desktop/titanic/train.csv', sep=',')
 test = pd.read_csv('C:/Users/lysyi/Desktop/titanic/test.csv', sep=',')
-idi = test['PassengerId'].values
 
+ans = data['Survived']
+idi = test['PassengerId']
 
-data.drop(['PassengerId', 'Cabin','Ticket','Name'], axis=1, inplace=True)
-data = data.fillna(value = {'Age' : 23.79929, 'Embarked' : 'S','Fare' : 1000})
-y = data['Survived'].values
-data.drop(['Survived'], axis=1, inplace=True)
+data.drop(columns=['PassengerId','Cabin','Ticket','Embarked','SibSp','Parch','Name','Survived'], inplace=True)
+test.drop(columns=['PassengerId','Cabin','Ticket','Embarked','SibSp','Parch','Name'], inplace=True)
+
+data['Pclass'] = data['Pclass'].astype(str)
+test['Pclass'] = test['Pclass'].astype(str)
+
 data = pd.get_dummies(data)
-data.drop(['Embarked_S','Embarked_Q','Embarked_C', 'Parch', 'Fare'], axis=1, inplace=True)
-
-
-xg = RandomForestClassifier(max_features= 'sqrt')
-param_grid = {
-    'n_estimators': [150,100],
-    'max_depth':[2,3,None],
-    'max_features': ['auto', 'sqrt', 'log2'],
-    'bootstrap': [True, False],
-    'criterion': ["gini", "entropy"]}
-
-random_search = GridSearchCV(xg, param_grid=param_grid, cv=5, iid=False)
-
-model = random_search.fit(data, y)
-
-test.drop(['PassengerId', 'Cabin','Ticket','Name'], axis=1, inplace=True)
-test = test.fillna(value = {'Age' : 23.79929,'Fare' : 1000})
 test = pd.get_dummies(test)
-test.drop(['Embarked_S','Embarked_Q','Embarked_C', 'Parch', 'Fare'], axis=1, inplace=True)
+cols = data.columns
 
-y = model.predict(test)
+min_max_scaler = preprocessing.MinMaxScaler().fit_transform(data)
+data_norm = pd.DataFrame(min_max_scaler, columns = cols)
+
+min_max_scaler1 = preprocessing.MinMaxScaler().fit_transform(test)
+test_norm = pd.DataFrame(min_max_scaler1, columns = cols)
+
+data_norm = data_norm.fillna(value = {'Age' : data_norm['Age'].mean(), 'Fare': data_norm['Fare'].mean()})
+test_norm = test_norm.fillna(value = {'Age' : test_norm['Age'].mean(), 'Fare': test_norm['Fare'].mean()})
+
+model = RandomForestClassifier(n_estimators = 700, criterion='gini', bootstrap= True, max_depth= 20, max_features='sqrt', min_samples_leaf= 1, min_samples_split= 10, n_jobs=-1)
+model.fit(data_norm, ans)
+
+y = model.predict(test_norm)
 d = {'PassengerId':idi, 'Survived': y}
 answer = pd.DataFrame(data=d)
 np.savetxt(r'C:/Users/lysyi/Desktop/titanic/result.txt',answer,fmt='%d,%d')
-
